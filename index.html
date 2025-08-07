@@ -3,254 +3,265 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>MARGIC Portal — кейсы как миры</title>
-  <meta name="theme-color" content="#0B0E13" />
-  <link rel="preconnect" href="https://unpkg.com">
+  <title>AR: Квадрат + «Никита ОС»</title>
   <style>
-    :root{
-      --bg:#0B0E13; --surface:#12161F; --txt:#e6eef9; --muted:#9aa7b3;
-      --blue:#4DA3FF; --pink:#FF3DF2; --lime:#67FF9A; --glass:rgba(18,22,31,.6);
+    html, body { margin:0; padding:0; height:100%; background:#000; color:#fff; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    canvas { display:block; }
+    #overlay {
+      position: fixed; inset: 0; pointer-events: none;
+      display: flex; flex-direction: column; justify-content: space-between;
+      padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom) 16px;
     }
-    *{box-sizing:border-box}
-    html,body{height:100%;margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
-    canvas{display:block}
-    .ui{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:16px}
-    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .brand{pointer-events:auto;display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.06em}
-    .brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--pink));box-shadow:0 0 14px rgba(77,163,255,.7)}
-    .chip{pointer-events:auto;background:var(--glass);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);
-      border-radius:14px;padding:10px 14px;box-shadow:0 8px 28px rgba(0,0,0,.35)}
-    .actions{display:flex;gap:10px;align-items:center}
-    .btn{pointer-events:auto;background:#ffffff;color:#000;border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
-    .btn.ghost{background:transparent;color:var(--txt);border:1px solid rgba(255,255,255,.12)}
-    .hint{opacity:.8;font-size:13px}
-    .panel{pointer-events:auto;max-width:820px;margin:0 auto;background:var(--glass);border:1px solid rgba(255,255,255,.08);
-      border-radius:16px;padding:16px;box-shadow:0 18px 40px rgba(0,0,0,.45)}
-    .panel h2{margin:0 0 8px 0;font-family:'Space Grotesk',Inter,system-ui,Arial,sans-serif;letter-spacing:-.02em}
-    .panel p{margin:6px 0;color:var(--muted)}
-    .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:10px}
-    .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:12px}
-    .card b{color:#fff}
-    .cta{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
-    .footer{display:flex;justify-content:center}
-    .badge{font-size:12px;opacity:.8}
-    .tooltip{position:fixed;left:50%;transform:translateX(-50%);bottom:88px;pointer-events:none;
-      background:var(--glass);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px 12px;font-size:14px;display:none}
-    .tooltip.show{display:block}
-    .overlay{
-      position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .5s ease;
-      background: radial-gradient(60% 60% at 50% 50%, rgba(77,163,255,.25), rgba(255,61,242,.2) 50%, rgba(11,14,19,1) 70%);
+    .top, .bottom { display:flex; align-items:center; gap:8px; }
+    .top { justify-content: space-between; }
+    .hint {
+      pointer-events: none; background: rgba(0,0,0,0.45); padding:8px 12px; border-radius:12px; font-size:14px;
+      backdrop-filter: blur(6px);
     }
-    .overlay.show{opacity:1}
-    @media (max-width:700px){
-      .cards{grid-template-columns:1fr}
-      .ui{padding:12px}
+    .btn {
+      pointer-events: auto; background:#ffffff; color:#000; border:0; border-radius:12px; padding:10px 14px;
+      font-weight:600; cursor:pointer; box-shadow: 0 2px 12px rgba(0,0,0,.25);
     }
+    .btn:active { transform: translateY(1px); }
+    a, a:visited { color: #9ad1ff; }
   </style>
 </head>
 <body>
-  <div class="ui">
-    <div class="topbar">
-      <div class="brand chip"><span class="dot"></span> MARGIC</div>
-      <div class="actions">
-        <div class="chip hint" id="hint">Наведите на портал и кликните, чтобы войти</div>
-        <button id="backBtn" class="btn ghost" style="display:none">← В хаб</button>
-      </div>
+  <div id="overlay" class="overlay">
+    <div class="top">
+      <div class="hint">Наведите на поверхность. Когда появится кольцо — тапните, чтобы разместить объект.</div>
+      <button id="clearBtn" class="btn">Очистить</button>
     </div>
-
-    <div id="worldPanel" class="panel" style="display:none">
-      <h2 id="worldTitle">Заголовок мира</h2>
-      <p id="worldHook">Короткий хук</p>
-      <div class="cards">
-        <div class="card"><b>Задача</b><p id="wTask"></p></div>
-        <div class="card"><b>Решение</b><p id="wSolution"></p></div>
-        <div class="card"><b>Результат</b><p id="wResult"></p></div>
-        <div class="card"><b>Контекст</b><p id="wContext"></p></div>
-      </div>
-      <div class="cta">
-        <a id="wPrimary" class="btn" target="_blank" rel="noopener">Открыть AR‑демо</a>
-        <a id="wSecondary" class="btn ghost" target="_blank" rel="noopener">Связаться</a>
-      </div>
-    </div>
-
-    <div class="footer">
-      <div class="badge chip">РЕШАЕМ ЗАДАЧИ БИЗНЕСА, ДОПОЛНЯЯ РЕАЛЬНОСТЬ</div>
+    <div class="bottom">
+      <div class="hint">Надпись: «Никита ОС»</div>
     </div>
   </div>
 
-  <div id="tooltip" class="tooltip"></div>
-  <div id="overlay" class="overlay"></div>
-
   <script type="module">
     import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-    import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+    import { ARButton } from 'https://unpkg.com/three@0.160.0/examples/jsm/webxr/ARButton.js';
 
-    // worlds с корректными ссылками на AR‑страницу (ar.html?world=...)
-    const worlds = [
-      {
-        id:'yauza',
-        title:'Необычная реальность — Парк Яуза',
-        hook:'AR‑открытие зимнего сезона: технологии становятся частью праздника.',
-        task:'Сделать событие, вовлекающее горожан и рассказывающее про AR через эмоции.',
-        solution:'WebAR‑активности: фото‑зоны, интерактивы, быстрый вход без установки приложений.',
-        result:'Рост вовлечённости и UGC; интерес к AR‑кейсам; повторные визиты.',
-        context:'Площадка «Ростокинский акведук».',
-        primary:{label:'Открыть AR‑демо', href:'./ar.html?world=yauza'},
-        secondary:{label:'Запросить активацию', href:'mailto:margic@margic.ru'},
-        theme:{sky:'#0B0E13', fog:0.05, gradientA:'#4DA3FF', gradientB:'#FF3DF2'}
-      },
-      {
-        id:'ocean',
-        title:'AR‑экспонаты — Приморский океанариум',
-        hook:'Когда экспонаты оживают рядом: разглядеть, узнать, запомнить.',
-        task:'Сделать экспозицию интерактивной и образовательной.',
-        solution:'AR‑экспонаты с жестами и фактами. Сканируй QR — взаимодействуй.',
-        result:'Больше времени у стендов, выше вовлечённость и отзывы.',
-        context:'Живые карточки видов, масштабирование, смена ракурсов.',
-        primary:{label:'Открыть AR‑демо', href:'./ar.html?world=ocean'},
-        secondary:{label:'Обсудить внедрение', href:'mailto:margic@margic.ru'},
-        theme:{sky:'#0B0E13', fog:0.06, gradientA:'#67FF9A', gradientB:'#4DA3FF'}
-      },
-      {
-        id:'table-bld',
-        title:'Макет без макета — здание «на столе»',
-        hook:'WebAR‑макет: продаёт быстрее, стоит дешевле, работает везде.',
-        task:'Показать объект без физического макета.',
-        solution:'WebAR с карточками: факты, планировки, CTA.',
-        result:'Экономия бюджета и ускорение решений.',
-        context:'Открой ссылку — модель появляется в реальном мире.',
-        primary:{label:'Открыть AR‑демо', href:'./ar.html?world=table-bld'},
-        secondary:{label:'Получить консультацию', href:'mailto:margic@margic.ru'},
-        theme:{sky:'#0B0E13', fog:0.04, gradientA:'#FF3DF2', gradientB:'#67FF9A'}
-      },
-      {
-        id:'industrial',
-        title:'Промышленные AR‑инструкции',
-        hook:'Послойный разбор оборудования: наглядно, безопасно, пошагово.',
-        task:'Ускорить обучение и снизить ошибки.',
-        solution:'AR‑гайды с подсветкой узлов и шагами.',
-        result:'Меньше простоя, выше эффективность.',
-        context:'Пилотирование на производстве выполнено.',
-        primary:{label:'Открыть AR‑демо', href:'./ar.html?world=industrial'},
-        secondary:{label:'Подробнее о подходе', href:'mailto:margic@margic.ru'},
-        theme:{sky:'#0B0E13', fog:0.055, gradientA:'#4DA3FF', gradientB:'#67FF9A'}
-      },
-      {
-        id:'manzherok',
-        title:'Манжерок — всесезонный курорт',
-        hook:'Нажмите, чтобы начать экскурсию: AR‑маршруты и точки интереса.',
-        task:'Собрать «вау‑экскурсию» без очередей и гидов.',
-        solution:'Порталы в ключевые зоны, AR‑навигаторы, быстрый старт по QR.',
-        result:'Снижение нагрузки на персонал, довольные гости.',
-        context:'Зима/лето — один клик до эмоций.',
-        primary:{label:'Открыть AR‑демо', href:'./ar.html?world=manzherok'},
-        secondary:{label:'Связаться с нами', href:'mailto:margic@margic.ru'},
-        theme:{sky:'#0B0E13', fog:0.045, gradientA:'#FF3DF2', gradientB:'#4DA3FF'}
-      }
-    ];
+    let scene, camera, renderer;
+    let reticle;
+    let controller;
+    let hitTestSource = null;
+    let hitTestSourceRequested = false;
 
-    // --- Ниже — трёхмерный хаб с порталами (укорочено для стабильности) ---
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 200);
-    camera.position.set(0,1.3,3.6);
-    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-    renderer.setSize(innerWidth, innerHeight);
-    document.body.appendChild(renderer.domElement);
+    const placed = [];
 
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true; controls.dampingFactor = 0.06;
-    controls.enablePan = false; controls.minDistance=2; controls.maxDistance=6; controls.target.set(0,1.0,0);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x0a0d12, 0.7));
-    const dir = new THREE.DirectionalLight(0xffffff, 0.9); dir.position.set(2,3,2); scene.add(dir);
-    scene.fog = new THREE.FogExp2(0x0b0e13, 0.05);
-
-    const floor = new THREE.Mesh(
-      new THREE.CircleGeometry(6, 128),
-      new THREE.MeshStandardMaterial({ color:0x0f1218, metalness:0.2, roughness:0.9 })
-    );
-    floor.rotation.x = -Math.PI/2; floor.position.y = 0; scene.add(floor);
-
-    const portalGeo = new THREE.PlaneGeometry(1.4, 1.9);
-    function portalMat(a,b){
-      return new THREE.ShaderMaterial({
-        uniforms:{ u_time:{value:0}, u_a:{value:new THREE.Color(a)}, u_b:{value:new THREE.Color(b)} },
-        transparent:true, side:THREE.DoubleSide,
-        vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-        fragmentShader:`precision highp float; varying vec2 vUv; uniform float u_time; uniform vec3 u_a; uniform vec3 u_b;
-          void main(){ vec2 uv=vUv; float t=u_time*.35; float d=length(uv-.5);
-            float core=smoothstep(.48+.02*sin(t), 0., d);
-            vec3 g=mix(u_a,u_b, uv.y+.12*sin(t+uv.x*4.));
-            float a=clamp(core,0.,1.); gl_FragColor=vec4(g*core,a);
-          }`
-      });
-    }
-
-    const hub = new THREE.Group(); scene.add(hub);
-    const portals = []; const labels = [];
-    const layout = [{x:-2.2,z:-1.2},{x:0,z:-1.6},{x:2.2,z:-1.2},{x:-1.1,z:0.2},{x:1.1,z:0.2}];
-
-    function makeLabel(text){
-      const c=document.createElement('canvas'),ctx=c.getContext('2d'); const pad=24, fs=42;
-      ctx.font=`800 ${fs}px "Space Grotesk", Inter, Arial`; const w=Math.max(512, Math.ceil(ctx.measureText(text).width+pad*2));
-      const h=140; c.width=w; c.height=h;
-      ctx.fillStyle='rgba(18,22,31,0.55)'; ctx.fillRect(0,0,w,h);
-      ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.strokeRect(0,0,w,h);
-      const grad=ctx.createLinearGradient(0,0,w,0); grad.addColorStop(0,'#4DA3FF'); grad.addColorStop(1,'#FF3DF2');
-      ctx.fillStyle=grad; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(text,w/2,h/2+4);
-      const tex=new THREE.Texture(c); tex.needsUpdate=true;
-      const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true})); sp.scale.set(1.6,1.6*h/w,1); return sp;
-    }
-
-    worlds.forEach((w,i)=>{
-      const mat=portalMat(w.theme.gradientA,w.theme.gradientB);
-      const mesh=new THREE.Mesh(portalGeo,mat);
-      mesh.position.set(layout[i].x,1.2,layout[i].z); mesh.lookAt(0,1.2,3.2);
-      mesh.userData.worldId=w.id; mesh.userData.uniforms=mat.uniforms; hub.add(mesh); portals.push(mesh);
-      const label=makeLabel(w.title); label.position.copy(mesh.position).add(new THREE.Vector3(0,-1.25,0)); hub.add(label); labels.push(label);
-    });
-
-    // UI elements
-    const $panel=document.getElementById('worldPanel'); const $title=document.getElementById('worldTitle');
-    const $hook=document.getElementById('worldHook'); const $task=document.getElementById('wTask');
-    const $sol=document.getElementById('wSolution'); const $res=document.getElementById('wResult');
-    const $ctx=document.getElementById('wContext'); const $p=document.getElementById('wPrimary'); const $s=document.getElementById('wSecondary');
-    const $back=document.getElementById('backBtn'); const $tip=document.getElementById('tooltip'); const $hint=document.getElementById('hint');
-    const $overlay=document.getElementById('overlay');
-
-    const ray=new THREE.Raycaster(); const mouse=new THREE.Vector2(); let hovered=null, active={id:null};
-    function showWorldUI(w){
-      $title.textContent=w.title; $hook.textContent=w.hook; $task.textContent=w.task; $sol.textContent=w.solution; $res.textContent=w.result; $ctx.textContent=w.context;
-      $p.textContent=w.primary.label; $p.href=w.primary.href; $s.textContent=w.secondary.label; $s.href=w.secondary.href;
-      $panel.style.display=''; $back.style.display=''; $hint.style.display='none';
-    }
-    function hideWorldUI(){ $panel.style.display='none'; $back.style.display='none'; $hint.style.display=''; }
-
-    function onPointerMove(e){
-      const x=e.clientX||(e.touches&&e.touches[0].clientX); const y=e.clientY||(e.touches&&e.touches[0].clientY); if(x===undefined) return;
-      mouse.x = (x/innerWidth)*2-1; mouse.y = -(y/innerHeight)*2+1;
-      if(active.id) return; ray.setFromCamera(mouse,camera);
-      const hit=ray.intersectObjects(portals,false)[0]?.object||null; hovered=hit; document.body.style.cursor=hovered?'pointer':'default';
-      if(hovered){ const w=worlds.find(k=>k.id===hovered.userData.worldId); $tip.textContent=`Войти: ${w.title}`; $tip.classList.add('show'); }
-      else { $tip.classList.remove('show'); }
-    }
-    function onClick(){ if(!hovered||active.id) return; enterWorld(hovered.userData.worldId); }
-    window.addEventListener('mousemove', onPointerMove, {passive:true});
-    window.addEventListener('touchmove', onPointerMove, {passive:true});
-    window.addEventListener('click', onClick);
-
-    function enterWorld(id){
-      const w=worlds.find(x=>x.id===id); if(!w) return; active.id=id;
-      $overlay.classList.add('show');
-      setTimeout(()=>{ showWorldUI(w); $overlay.classList.remove('show'); }, 350);
-    }
-    function leaveWorld(){ if(!active.id) return; hideWorldUI(); active.id=null; }
-    document.getElementById('backBtn').addEventListener('click', leaveWorld);
-
-    window.addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
-    const clock=new THREE.Clock();
-    function animate(){ requestAnimationFrame(animate); const t=clock.getElapsedTime(); portals.forEach(p=>{ p.userData.uniforms.u_time.value=t; p.position.y=1.2+Math.sin(t*.9+p.position.x)*.08; }); controls.update(); renderer.render(scene,camera); }
+    init();
     animate();
+
+    function init() {
+      scene = new THREE.Scene();
+      scene.background = null;
+
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.xr.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      // Свет
+      const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+      scene.add(hemi);
+      const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+      dir.position.set(1, 2, 1);
+      scene.add(dir);
+
+      // Ретикл (кольцо, указывает место попадания хит-теста)
+      const reticleGeo = new THREE.RingGeometry(0.08, 0.1, 32).rotateX(-Math.PI / 2);
+      const reticleMat = new THREE.MeshBasicMaterial({ color: 0x67ff9a, transparent: true, opacity: 0.9 });
+      reticle = new THREE.Mesh(reticleGeo, reticleMat);
+      reticle.matrixAutoUpdate = false;
+      reticle.visible = false;
+      scene.add(reticle);
+
+      // Контроллер + обработчик "tap"
+      controller = renderer.xr.getController(0);
+      controller.addEventListener('select', onSelect);
+      scene.add(controller);
+
+      // AR Button
+      const arButton = ARButton.createButton(renderer, {
+        requiredFeatures: ['hit-test'],
+        optionalFeatures: ['dom-overlay'],
+        domOverlay: { root: document.getElementById('overlay') }
+      });
+      document.body.appendChild(arButton);
+
+      // Кнопка очистки
+      document.getElementById('clearBtn').addEventListener('click', () => {
+        placed.forEach(obj => scene.remove(obj));
+        placed.length = 0;
+      });
+
+      window.addEventListener('resize', onWindowResize);
+      renderer.xr.addEventListener('sessionstart', onSessionStart);
+      renderer.xr.addEventListener('sessionend', onSessionEnd);
+    }
+
+    async function onSessionStart() {
+      hitTestSourceRequested = false;
+      reticle.visible = false;
+    }
+
+    function onSessionEnd() {
+      hitTestSource = null;
+      hitTestSourceRequested = false;
+      reticle.visible = false;
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function onSelect() {
+      if (!reticle.visible) return;
+
+      // Создаем группу: квадратная плитка + надпись
+      const group = new THREE.Group();
+
+      // Квадратная "плитка" 25 см × 25 см
+      const tileSize = 0.25;
+      const tileGeo = new THREE.PlaneGeometry(tileSize, tileSize);
+      const tileMat = new THREE.MeshStandardMaterial({
+        color: 0x1e90ff,
+        roughness: 0.6,
+        metalness: 0.0,
+        side: THREE.DoubleSide
+      });
+      const tile = new THREE.Mesh(tileGeo, tileMat);
+      tile.rotation.x = -Math.PI / 2; // Ложим на поверхность
+      tile.receiveShadow = false;
+      group.add(tile);
+
+      // Надпись: «Никита ОС» — как спрайт из canvas-текстуры
+      const sprite = makeTextSprite('Никита ОС', {
+        fontSize: 64,
+        padding: 24,
+        textColor: '#ffffff',
+        strokeColor: 'rgba(0,0,0,0.7)',
+        strokeWidth: 6,
+        background: 'rgba(0,0,0,0)' // без плашки
+      });
+      // Масштабируем спрайт в метры (примерно 30 см шириной)
+      const targetWidthMeters = 0.30;
+      const aspect = sprite.material.map.image.width / sprite.material.map.image.height;
+      sprite.scale.set(targetWidthMeters, targetWidthMeters / aspect, 1);
+      sprite.position.set(0, 0.14, 0); // ~14 см над плиткой
+      group.add(sprite);
+
+      // Помещаем группу в позу ретикла
+      const m = new THREE.Matrix4();
+      m.copy(reticle.matrix);
+      group.position.setFromMatrixPosition(m);
+      group.quaternion.setFromRotationMatrix(m);
+
+      scene.add(group);
+      placed.push(group);
+    }
+
+    // Создание текстового спрайта из canvas
+    function makeTextSprite(text, {
+      fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
+      fontSize = 64,
+      padding = 16,
+      textColor = '#ffffff',
+      strokeColor = 'rgba(0,0,0,0.6)',
+      strokeWidth = 4,
+      background = 'rgba(0,0,0,0)'
+    } = {}) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      // Предварительно считаем размеры
+      ctx.font = `700 ${fontSize}px ${fontFamily}`;
+      const metrics = ctx.measureText(text);
+      const textWidth = metrics.width;
+      const textHeight = fontSize * 1.4; // примерно с учетом выносных
+
+      canvas.width = nextPowerOfTwo(textWidth + padding * 2);
+      canvas.height = nextPowerOfTwo(textHeight + padding * 2);
+
+      // Отрисовка
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.font = `700 ${fontSize}px ${fontFamily}`;
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+
+      if (strokeWidth > 0) {
+        ctx.lineWidth = strokeWidth;
+        ctx.strokeStyle = strokeColor;
+        ctx.strokeText(text, cx, cy);
+      }
+      ctx.fillStyle = textColor;
+      ctx.fillText(text, cx, cy);
+      ctx.restore();
+
+      const texture = new THREE.Texture(canvas);
+      texture.needsUpdate = true;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.generateMipmaps = true;
+
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      const sprite = new THREE.Sprite(material);
+      return sprite;
+    }
+
+    function nextPowerOfTwo(x) {
+      return Math.pow(2, Math.ceil(Math.log2(Math.max(2, x))));
+    }
+
+    function animate() {
+      renderer.setAnimationLoop(render);
+    }
+
+    function render(timestamp, frame) {
+      const session = renderer.xr.getSession();
+      if (session && frame) {
+        const referenceSpace = renderer.xr.getReferenceSpace();
+
+        if (!hitTestSourceRequested) {
+          // Запрос источника хит-теста
+          session.requestReferenceSpace('viewer').then((viewerSpace) => {
+            session.requestHitTestSource({ space: viewerSpace }).then((source) => {
+              hitTestSource = source;
+            });
+          });
+          session.addEventListener('end', () => {
+            hitTestSourceRequested = false;
+            hitTestSource = null;
+          });
+          hitTestSourceRequested = true;
+        }
+
+        if (hitTestSource) {
+          const hitTestResults = frame.getHitTestResults(hitTestSource);
+          if (hitTestResults.length) {
+            const hit = hitTestResults[0];
+            const pose = hit.getPose(referenceSpace);
+            reticle.visible = true;
+            reticle.matrix.fromArray(pose.transform.matrix);
+          } else {
+            reticle.visible = false;
+          }
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
   </script>
 </body>
 </html>
