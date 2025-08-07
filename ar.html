@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>MARGIC AR — демо</title>
+  <meta name="theme-color" content="#0B0E13" />
+  <link rel="preconnect" href="https://unpkg.com">
+  <style>
+    :root{ --bg:#0B0E13; --glass:rgba(18,22,31,.55); --txt:#e6eef9; --muted:#a8b3bf }
+    html,body{height:100%;margin:0;background:#000;color:var(--txt);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    canvas{display:block}
+    .ui{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:12px}
+    .top{display:flex;justify-content:space-between;gap:8px}
+    .chip{pointer-events:auto;background:var(--glass);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);
+      border-radius:14px;padding:8px 12px;font-weight:700;display:flex;align-items:center;gap:8px}
+    .btn{pointer-events:auto;background:#fff;color:#000;border:0;border-radius:12px;padding:8px 12px;font-weight:800;cursor:pointer}
+    .btn.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.15)}
+    .controls{pointer-events:auto;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+    .hint{font-size:13px;color:var(--muted)}
+    .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;background:var(--glass);border:1px solid rgba(255,255,255,.1);
+      border-radius:12px;padding:8px 12px;font-size:13px}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <div class="ui">
+    <div class="top">
+      <a class="chip" href="./index.html">← В хаб</a>
+      <div id="status" class="chip">Готово к AR</div>
+    </div>
+    <div class="controls">
+      <button id="startBtn" class="btn">Запустить AR</button>
+      <button id="scaleDown" class="btn ghost">− Масштаб</button>
+      <button id="scaleUp" class="btn ghost">+ Масштаб</button>
+      <button id="rotLeft" class="btn ghost">⟲ Повернуть</button>
+      <button id="rotRight" class="btn ghost">⟳ Повернуть</button>
+    </div>
+    <div class="controls hint">Наведи камеру на пол/стол. Когда появится метка — тапни для установки.</div>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+    import { ARButton } from 'https://unpkg.com/three@0.160.0/examples/jsm/webxr/ARButton.js';
+
+    const params = new URLSearchParams(location.search);
+    const world = params.get('world') || 'table-bld';
+    const themes = {
+      'yauza':      { a:'#4DA3FF', b:'#FF3DF2' },
+      'ocean':      { a:'#67FF9A', b:'#4DA3FF' },
+      'table-bld':  { a:'#FF3DF2', b:'#67FF9A' },
+      'industrial': { a:'#4DA3FF', b:'#67FF9A' },
+      'manzherok':  { a:'#FF3DF2', b:'#4DA3FF' }
+    };
+    const theme = themes[world] || themes['table-bld'];
+
+    // basic three setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.01, 20);
+    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.xr.enabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    const light = new THREE.HemisphereLight(0xffffff, 0x111111, 1.0);
+    scene.add(light);
+
+    // Reticle (hit test marker)
+    const reticleGeo = new THREE.RingGeometry(0.12, 0.15, 32).rotateX(-Math.PI/2);
+    const reticleMat = new THREE.MeshBasicMaterial({ color: theme.a, transparent:true, opacity:0.85 });
+    const reticle = new THREE.Mesh(reticleGeo, reticleMat);
+    reticle.matrixAutoUpdate = false;
+    reticle.visible = false;
+    scene.add(reticle);
+
+    // Placed object (MARGIC totem)
+    let placed = null;
+    function makeTotem(){
+      const group = new THREE.Group();
+      const colorA = new THREE.Color(theme.a);
+      const colorB = new THREE.Color(theme.b);
+
+      const base = new THREE.CylinderGeometry(0.08, 0.1, 0.06, 36);
+      const baseMat = new THREE.MeshStandardMaterial({ color:0x1f2632, metalness:0.7, roughness:0.3 });
+      const baseMesh = new THREE.Mesh(base, baseMat); baseMesh.position.y = 0.03; group.add(baseMesh);
+
+      const body = new THREE.CylinderGeometry(0.06, 0.08, 0.28, 48);
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color:0x2a3445, metalness:0.6, roughness:0.2, emissive: colorA, emissiveIntensity: 0.25
+      });
+      const bodyMesh = new THREE.Mesh(body, bodyMat); bodyMesh.position.y = 0.2; group.add(bodyMesh);
+
+      const haloGeo = new THREE.TorusGeometry(0.11, 0.01, 16, 96);
+      const haloMat = new THREE.MeshBasicMaterial({ color: colorB, transparent:true, opacity:0.95 });
+      const halo = new THREE.Mesh(haloGeo, haloMat);
+      halo.position.y = 0.35; group.add(halo);
+
+      const glow = new THREE.PointLight(colorA, 0.8, 1.3); glow.position.set(0, 0.32, 0); group.add(glow);
+
+      group.userData = { scale: 1 };
+      return group;
+    }
+
+    // Status UI
+    const $start = document.getElementById('startBtn');
+    const $status = document.getElementById('status');
+    const $toast = document.getElementById('toast');
+    function toast(msg){ $toast.textContent=msg; $toast.classList.remove('hidden'); setTimeout(()=> $toast.classList.add('hidden'), 2000); }
+
+    // WebXR availability check
+    async function isARSupported(){
+      if(!('xr' in navigator)) return false;
+      try { return await navigator.xr.isSessionSupported('immersive-ar'); } catch { return false; }
+    }
+
+    // Controls
+    document.getElementById('scaleDown').onclick = ()=>{ if(!placed) return; placed.userData.scale = Math.max(0.3, placed.userData.scale - 0.1); placed.scale.setScalar(placed.userData.scale); };
+    document.getElementById('scaleUp').onclick   = ()=>{ if(!placed) return; placed.userData.scale = Math.min(2.0, placed.userData.scale + 0.1); placed.scale.setScalar(placed.userData.scale); };
+    document.getElementById('rotLeft').onclick   = ()=>{ if(!placed) return; placed.rotation.y += 0.2; };
+    document.getElementById('rotRight').onclick  = ()=>{ if(!placed) return; placed.rotation.y -= 0.2; };
+
+    // Session + hit test
+    let xrHitSource = null;
+    let xrRefSpace = null;
+
+    function onSelect(){ // tap to place/move
+      if(!reticle.visible) return;
+      if(!placed){
+        placed = makeTotem();
+        scene.add(placed);
+      }
+      placed.position.setFromMatrixPosition(reticle.matrix);
+      placed.visible = true;
+      toast('Объект установлен');
+    }
+
+    function animate(){
+      renderer.setAnimationLoop((time, frame)=>{
+        if(frame){
+          const refSpace = xrRefSpace;
+          const viewerPose = frame.getViewerPose(refSpace);
+          const hitTestResults = xrHitSource ? frame.getHitTestResults(xrHitSource) : [];
+          if(hitTestResults.length > 0){
+            const hit = hitTestResults[0];
+            const pose = hit.getPose(refSpace);
+            reticle.visible = true;
+            reticle.matrix.fromArray(pose.transform.matrix);
+          } else {
+            reticle.visible = false;
+          }
+        }
+        // small halo animation
+        if(placed){
+          const halo = placed.children.find(o=>o.geometry && o.geometry.type==='TorusGeometry');
+          if(halo){ halo.rotation.x += 0.01; halo.rotation.z += 0.008; }
+        }
+        renderer.render(scene, camera);
+      });
+    }
+
+    async function startAR(){
+      // create AR button to request session with needed features
+      const btn = ARButton.createButton(renderer, {
+        requiredFeatures: ['hit-test'],
+        optionalFeatures: ['dom-overlay'],
+        domOverlay: { root: document.body }
+      });
+      btn.style.display='none';
+      document.body.appendChild(btn);
+      btn.click(); // programmatically request session
+
+      renderer.xr.addEventListener('sessionstart', async ()=>{
+        $status.textContent='Идёт поиск плоскости...';
+        const session = renderer.xr.getSession();
+        xrRefSpace = await session.requestReferenceSpace('local');
+        const viewerSpace = await session.requestReferenceSpace('viewer');
+        xrHitSource = await session.requestHitTestSource({ space: viewerSpace });
+
+        session.addEventListener('select', onSelect);
+        animate();
+      });
+
+      renderer.xr.addEventListener('sessionend', ()=>{
+        $status.textContent='Сессия завершена';
+        reticle.visible = false;
+      });
+    }
+
+    // Resize
+    addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+    // Init
+    (async ()=>{
+      const ok = await isARSupported();
+      if(!ok){
+        $status.textContent = 'WebXR недоступен на этом устройстве';
+        $start.classList.add('hidden');
+        toast('Попробуйте Android Chrome или iOS 17+ Safari');
+        return;
+      }
+      $status.textContent = 'Готово к AR. Наведи камеру на плоскость';
+      $start.onclick = startAR;
+    })();
+  </script>
+</body>
+</html>
